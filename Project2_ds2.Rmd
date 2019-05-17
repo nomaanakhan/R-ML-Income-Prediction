@@ -1,0 +1,233 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+### Nomaan Khan
+### Projet 2 Dataset 2
+
+
+## Dataset description
+
+    Link for training data <"https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data">
+    Link for testing data <"https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.test">
+    
+    This is a data set of census data compiled by the Census Bureau of the United States.
+    
+    In this data set I'm trying to predict whether a person earns more than 50K or less than or equal to 50K based on the
+    census data submitted.
+    
+    In this project train dataset (ds2) is adult.data.txt and the testing dataset is adult.test.txt.
+    
+    I have analysed this dataset using Naive Bayes, Decision Trees and Neural Networks.
+    
+    Total Number of Rows = 48,801
+    Number of columns = 15
+    
+    Number of rows for train = 32,560.
+    Number of rows for test = 16,281.
+    
+    Attribute Description:
+    
+    1.  age: continuous. 
+    2.  workclass: Private, Self-emp-not-inc, Self-emp-inc, Federal-gov, Local-gov, State-gov, Without-pay, Never-worked. 
+    3.  fnlwgt: continuous. 
+    4.  education: Bachelors, Some-college, 11th, HS-grad, Prof-school, Assoc-acdm, Assoc-voc, 9th, 7th-8th, 12th, Masters,                       1st-4th, 10th, Doctorate, 5th-6th, Preschool. 
+    5.  education-num: continuous. 
+    6.  marital-status: Married-civ-spouse, Divorced, Never-married, Separated, Widowed, Married-spouse-absent,                                        Married-AF-spouse. 
+    7.  occupation: Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners,                          Machine-op-inspct, Adm-clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv,                          Armed-Forces. 
+    8.  relationship: Wife, Own-child, Husband, Not-in-family, Other-relative, Unmarried. 
+    9.  race: White, Asian-Pac-Islander, Amer-Indian-Eskimo, Other, Black. 
+    10. sex: Female, Male. 
+    11. capital-gain: continuous. 
+    12. capital-loss: continuous. 
+    13. hours-per-week: continuous. 
+    14. native-country: United-States, Cambodia, England, Puerto-Rico, Canada, Germany, Outlying-US(Guam-USVI-etc), India,                             Japan,Greece, South, China, Cuba, Iran, Honduras, Philippines, Italy, Poland, Jamaica, Vietnam, Mexico,                         Portugal, Ireland, France, Dominican-Republic, Laos, Ecuador, Taiwan, Haiti, Columbia, Hungary,                                Guatemala, Nicaragua, Scotland, Thailand, Yugoslavia, El-Salvador, Trinadad&Tobago, Peru, Hong,                                Holand-Netherlands.
+
+
+Reading in the data.
+The first line of the test file was the description, which is why I skipped it.
+
+```{r}
+ds2 <- read.table(file = "C:/Users/ADMIN/Desktop/Academia 2.0/Junior/Spring 2018/Machine Learning/HW/Project 2/adult.data.txt",
+                  header = FALSE, sep = ",")
+ds2_test <- read.table(file = "C:/Users/ADMIN/Desktop/Academia 2.0/Junior/Spring 2018/Machine Learning/HW/Project 2/adult.test.txt", skip=1, header = FALSE, sep = ",")
+```
+
+
+### Data Cleaning
+
+Since both data sets do not have column names, I have to manually enter them.
+Only one row has Holand-Netherland as country of origin in the train dataset, and keeping that row
+created an error(difference in levels between train and test) which is why I removed it.
+Each row in the test file ended with a '.' unlike the train file, this created a difference in levels
+between the test and train file, so I used the sub function to fix it.
+
+```{r}
+dim(ds2)
+colnames(ds2) <- c("age","workclass","fnlwgt","education","education_num","marital_status","occupation","relationship",
+                  "race","sex","capital_gain","capital_loss","hours_per_week","native_country","wage")
+colnames(ds2_test) <- c("age","workclass","fnlwgt","education","education_num","marital_status","occupation","relationship",
+                  "race","sex","capital_gain","capital_loss","hours_per_week","native_country","wage")
+
+
+ds2 <- ds2[ds2$native_country != " Holand-Netherlands",]
+ds2 <- droplevels(ds2)
+
+ds2_test$wage <- sub(" <=50K.",replacement = " <=50K", ds2_test$wage)
+ds2_test$wage <- sub(" >50K.",replacement = " >50K", ds2_test$wage)
+
+
+
+ds2_test$wage <- as.factor(ds2_test$wage)
+
+str(ds2)
+dim(ds2)
+```
+
+### Dataset Exploration
+
+```{r}
+summary(ds2)
+```
+
+
+```{r}
+head(ds2)
+```
+
+```{r}
+dim(ds2)
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+plot(ds2$hours_per_week,ds2$wage, ylab = "Wage", xlab = "hours per week")
+plot(ds2$education,ds2$wage, ylab = "Wage", xlab = "Loan?")
+```
+
+From the graphs we see hours per week is not a good predictor for wage but education generally is
+
+### Naive Bayes
+
+Here I use the naive bayes algorithm on the data set.
+
+```{r}
+library(e1071)
+nb1 <- naiveBayes(wage~., data=ds2)
+nb_pred <- predict(nb1, ds2_test[,-15])
+mean(nb_pred==ds2_test[,15])
+```
+
+
+### Decision Trees
+
+Here, I convert the factor native-country to numeric because tree() cannot handle a factor with over 32 levels.
+```{r}
+library('tree')
+
+ds2$native_country <- as.numeric(ds2$native_country)
+ds2_test$native_country <- as.numeric(ds2_test$native_country)
+
+tree.default = tree(wage~., ds2)
+tree.pred <- predict(tree.default, ds2_test, type="class")
+mean(tree.pred==ds2_test$wage, na.rm=TRUE)
+```
+
+```{r}
+plot(tree.default)
+text(tree.default, cex=0.5, pretty=0)
+```
+
+
+Cross Validating.
+```{r}
+cv.ds2 = cv.tree(tree.default, FUN=prune.misclass)
+cv.ds2
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(cv.ds2$size, cv.ds2$dev, type="b")
+plot(cv.ds2$k, cv.ds2$dev, type="b")
+```
+
+8 is the best choice.
+
+Pruning.
+```{r}
+prune.df = prune.misclass(tree.default, best=8)
+prune.df.pred <- predict(prune.df, ds2_test, type="class")
+mean(prune.df.pred==ds2_test$wage, na.rm=TRUE)
+```
+
+```{r}
+plot(prune.df)
+text(prune.df, pretty=0)
+```
+
+
+### Neural Networks
+
+Converting factors into numerics so that they can be used for neural network.
+
+```{r}
+ds2_numeric <- ds2
+ds2_numeric$workclass <- as.numeric(ds2_numeric$workclass)
+ds2_numeric$education <- as.numeric(ds2_numeric$education)
+ds2_numeric$marital_status <- as.numeric(ds2_numeric$marital_status)
+ds2_numeric$occupation <- as.numeric(ds2_numeric$occupation)
+ds2_numeric$relationship <- as.numeric(ds2_numeric$relationship)
+ds2_numeric$race <- as.numeric(ds2_numeric$race)
+ds2_numeric$sex <- as.numeric(ds2_numeric$sex)
+ds2_numeric$native_country <- as.numeric(ds2_numeric$native_country)
+ds2_numeric$wage <- as.numeric(ds2_numeric$wage)
+str(ds2_numeric)
+
+ds2_test_numeric <- ds2_test
+ds2_test_numeric$workclass <- as.numeric(ds2_test_numeric$workclass)
+ds2_test_numeric$education <- as.numeric(ds2_test_numeric$education)
+ds2_test_numeric$marital_status <- as.numeric(ds2_test_numeric$marital_status)
+ds2_test_numeric$occupation <- as.numeric(ds2_test_numeric$occupation)
+ds2_test_numeric$relationship <- as.numeric(ds2_test_numeric$relationship)
+ds2_test_numeric$race <- as.numeric(ds2_test_numeric$race)
+ds2_test_numeric$sex <- as.numeric(ds2_test_numeric$sex)
+ds2_test_numeric$native_country <- as.numeric(ds2_test_numeric$native_country)
+ds2_test_numeric$wage <- as.numeric(ds2_test_numeric$wage)
+str(ds2_test_numeric)
+```
+
+
+```{r}
+library(neuralnet)
+nn1 <- neuralnet(wage~age+workclass+fnlwgt+education+education_num+marital_status+occupation
+                 +relationship+race+sex+capital_gain+capital_loss+hours_per_week+native_country, ds2_numeric,
+                  hidden=c(5,3), lifesign="minimal",
+                  linear.output=FALSE, threshold=0.1)
+```
+
+
+```{r}
+temp_test <- subset(ds2_test_numeric, select=c("age","workclass","fnlwgt","education","education_num","marital_status","occupation",
+          "relationship","race","sex","capital_gain","capital_loss","hours_per_week","native_country"))
+
+nn1.results <- compute(nn1, temp_test)
+results <- data.frame(actual=ds2_test_numeric$wage, prediction=nn1.results$net.result)
+results$round <- round(results$prediction)
+mean(results$round==results$actual)
+```
+
+### Model and Algorithm Analysis
+
+Naive Bayes Accuracy: 0.8264234384.
+
+Unpruned Tree accuracy: 0.8445427185
+Pruned Tree accuracy: 0.8445427185
+
+Neural Network accuracy: 0.763773724
+
+The trees have the highest accuracy at 0.8445427185 followed by naive bayes
+and neural network produces the lowest accuracy.
+
+This data set is well suited for trees and not very well suited for neural networks.
